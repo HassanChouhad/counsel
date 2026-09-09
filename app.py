@@ -187,7 +187,7 @@ Always remain objective, thorough, and analytical. Act as an expert paralegal su
         try:
             choice = input(f"\n{BOLD}Would you like to analyze another case? (y/N): {RESET}").strip().lower()
             if choice not in ["y", "yes"]:
-                print(f"\n{BLUE}Thank you for choosing CounselCore! Good luck with your AWS Hackathon submission!{RESET}\n")
+                print(f"\n{BLUE}Thank you for choosing CounselCore!{RESET}\n")
                 break
         except (KeyboardInterrupt, EOFError):
             print(f"\n\n{BLUE}Exiting CounselCore. Goodbye!{RESET}\n")
