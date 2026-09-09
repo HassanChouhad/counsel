@@ -122,7 +122,7 @@ Always remain objective, thorough, and analytical. Act as an expert paralegal su
         agent = Agent(
             model=model,
             tools=[search_case_law, lookup_statutes, draft_legal_brief],
-            prompt=system_prompt
+            system_prompt=system_prompt
         )
         print(f"{GREEN}[✓] CounselCore Agent initialized successfully and ready for inquiry.{RESET}")
         print("=" * 80)
