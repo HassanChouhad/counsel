@@ -187,5 +187,47 @@ To ensure judges can run the hackathon demo without needing a paid subscription 
 
 ---
 
+## 💾 Persistent Vector Database (ChromaDB)
+
+CounselCore has been upgraded from static dictionaries to a local **ChromaDB vector database** implementing semantically indexed retrieval (RAG).
+
+### 1. Ingest Core Landmark Data (Seed)
+Run the seeder to populate the local database (`./chroma_db/`) with foundational state statutes and precedent summaries:
+```bash
+python seed_db.py
+```
+
+### 2. Ingest Real California Case Law (Harvard CAP Data)
+We integrated support to download real court opinions directly from the **Harvard Caselaw Access Project**'s static server (`static.case.law`). 
+Run the real data ingester, which downloads actual opinion documents, uses your AWS Bedrock model to autonomously extract facts, holdings, and principles, and indexes them into ChromaDB:
+```bash
+python ingest_real_cases.py
+```
+
+---
+
+## 💻 Running the Web Frontend & API Server
+
+In addition to the interactive command-line app, CounselCore includes a visually stunning, responsive **Vite.js + React (TypeScript)** web dashboard with a **Chat + Brief Split-View** UX.
+
+### 1. Start the Python API Backend Server
+Launch the FastAPI web server, which handles requests from the React client and coordinates with your Strands SDK Agent:
+```bash
+python api.py
+```
+*(Runs on [http://127.0.0.1:8000](http://127.0.0.1:8000))*
+
+### 2. Run the Vite Web Client
+Navigate to the `frontend/` directory, install packages, and start the development server:
+```bash
+cd frontend
+npm run dev
+```
+*(Open your browser at [http://localhost:5173](http://localhost:5173))*
+
+*Note: The frontend includes a **Simulated (Local Mock) Mode** that auto-detects if your FastAPI backend is offline and falls back to a realistic interactive demo, allowing judges to test and review the layout and transitions seamlessly even without AWS Bedrock access!*
+
+---
+
 ## 📄 License
 This project is licensed under the standard MIT License. See the [LICENSE](LICENSE) file for details.
