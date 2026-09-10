@@ -2,7 +2,7 @@
 CounselCore Tools Module
 =========================
 This module contains the custom tools used by the CounselCore agent for legal research.
-It provides mocked databases and dynamic keyword matching for case law and statutes,
+It provides a local persistent vector database powered by ChromaDB and semantic search,
 as well as a template engine for drafting structured legal briefs.
 
 These tools are decorated with Strands Agents SDK's `@tool` decorator, which automatically
@@ -10,136 +10,28 @@ parses the function signatures, type hints, and Google-style docstrings to gener
 the tool schema for the AI agent.
 """
 
+import os
+import sys
+import chromadb
 from strands import tool
 
-# ==========================================
-# 1. Mock Legal Database (Realistic Precedents)
-# ==========================================
-MOCK_CASES = [
-    {
-        "name": "NovaTech Solutions v. Apex Systems Corp.",
-        "citation": "842 F.3d 1105 (9th Cir. 2023)",
-        "court": "United States Court of Appeals for the Ninth Circuit",
-        "year": 2023,
-        "jurisdiction": "California / Federal / 9th Circuit",
-        "facts": "An employer sought to enforce a nationwide non-compete clause against a former software architect. The agreement barred employment with any tech company for three years.",
-        "holding": "The non-compete clause was found to be overly broad and geographically unreasonable, making it completely unenforceable under California Business and Professions Code Section 16600.",
-        "principle": "Restrictive covenants in employment agreements must have a reasonable geographical scope, a limited duration, and protect a clear legitimate interest (such as trade secrets). In California, non-compete agreements are void ab initio except in extremely narrow statutory exceptions.",
-        "tags": ["non-compete", "restrictive covenant", "employment", "contract", "california", "geographic scope"]
-    },
-    {
-        "name": "Summit Logistics Group v. Miller",
-        "citation": "512 S.W.3d 88 (Tex. App. 2021)",
-        "court": "Texas Court of Appeals",
-        "year": 2021,
-        "jurisdiction": "Texas State Court",
-        "facts": "A logistics company sued a former sales executive for breaching a 1-year, 50-mile radius non-compete covenant and soliciting former clients using proprietary customer lists.",
-        "holding": "The court upheld the non-compete as reasonable in duration and geographic scope, and found the customer lists constituted protectable trade secrets under the Texas Uniform Trade Secrets Act (TUTSA).",
-        "principle": "Covenants not to compete are enforceable in Texas if they are ancillary to or part of an otherwise enforceable agreement, and contain reasonable limitations as to time, geographical area, and scope of activity.",
-        "tags": ["non-compete", "employment", "contract", "texas", "trade secrets", "solicitation", "restrictive covenant"]
-    },
-    {
-        "name": "Creative Designs Inc. v. PixelCraft LLC",
-        "citation": "921 F. Supp. 2d 441 (S.D.N.Y. 2022)",
-        "court": "U.S. District Court for the Southern District of New York",
-        "year": 2022,
-        "jurisdiction": "New York / Federal / S.D.N.Y.",
-        "facts": "Plaintiff sued PixelCraft for copyright infringement, claiming PixelCraft's AI-generated marketing materials copied original vector graphics owned by Plaintiff. PixelCraft claimed fair use.",
-        "holding": "The court rejected the fair use defense, finding that PixelCraft's commercial application directly competed with the original market and copied the expressive essence of the graphics without transformative purpose.",
-        "principle": "Fair use analysis requires balancing four statutory factors: purpose of use, nature of copyrighted work, amount/substantiality of portion used, and effect on the market. Commercial, non-transformative copying that damages the original market is rarely considered fair use.",
-        "tags": ["copyright", "fair use", "infringement", "intellectual property", "digital assets", "new york", "commercial", "patent", "trademark"]
-    },
-    {
-        "name": "Dr. Angela Carter v. St. Jude Medical Center",
-        "citation": "310 Mass. 182 (2020)",
-        "court": "Supreme Judicial Court of Massachusetts",
-        "year": 2020,
-        "jurisdiction": "Massachusetts State Court",
-        "facts": "A patient suffered severe complications following a surgical procedure where the surgeon deviated from standard pre-operative checklist protocols, leading to an undetected internal infection.",
-        "holding": "The court affirmed a jury verdict for the plaintiff, holding that deviation from standard hospital protocol can be introduced as direct evidence of a breach of the professional standard of care.",
-        "principle": "Medical malpractice requires establishing: (1) a physician-patient relationship creating a duty of care, (2) deviation from the accepted professional standard of care, (3) a causal link between deviation and injury (proximate cause), and (4) quantifiable damages.",
-        "tags": ["negligence", "medical malpractice", "standard of care", "personal injury", "massachusetts", "causation", "liability", "injury"]
-    },
-    {
-        "name": "In re Sentinel Data Solutions Privacy Litigation",
-        "citation": "452 F. Supp. 3d 910 (N.D. Cal. 2024)",
-        "court": "U.S. District Court for the Northern District of California",
-        "year": 2024,
-        "jurisdiction": "California / Federal / N.D. Cal.",
-        "facts": "A class-action suit was filed against a cloud service provider after a misconfigured database exposed personal health information (PHI) and financial records of over 2 million consumers.",
-        "holding": "The court denied the defendant's motion to dismiss, ruling that failure to implement basic security controls (like encryption at rest and access logs) constituted a plausible claim for negligence and violated statutory consumer privacy duties.",
-        "principle": "Under modern data protection frameworks, companies owe a duty of reasonable care to secure sensitive personal data. Showing failure to apply standard industry frameworks (e.g., NIST, CIS) can establish a breach of that duty.",
-        "tags": ["privacy", "data breach", "negligence", "california", "cybersecurity", "duty of care", "leak", "security"]
-    }
-]
+DB_DIR = "./chroma_db"
 
-# ==========================================
-# 2. Mock Legal Database (Realistic Statutes)
-# ==========================================
-MOCK_STATUTES = [
-    {
-        "title": "California Business and Professions Code - Void Contracts",
-        "section": "Cal. Bus. & Prof. Code § 16600",
-        "jurisdiction": "California, USA",
-        "description": "Except as provided in this chapter, every contract by which anyone is restrained from engaging in a lawful profession, trade, or business of any kind is to that extent void.",
-        "provisions": [
-            "Voiding of restrictive covenants: Declares non-compete agreements in employment context strictly invalid.",
-            "Exceptions: Limited to sale of business goodwill, partnership dissolution, or LLC member dissociation."
-        ],
-        "tags": ["non-compete", "employment", "contract", "california", "restrictive covenant"]
-    },
-    {
-        "title": "Texas Covenants Not to Compete Act",
-        "section": "Tex. Bus. & Com. Code § 15.50",
-        "jurisdiction": "Texas, USA",
-        "description": "Governs the enforceability of covenants not to compete in the state of Texas.",
-        "provisions": [
-            "Enforceability: Must be ancillary to or part of an otherwise enforceable agreement.",
-            "Reasonableness: Must contain reasonable limitations as to time, geographical area, and scope of activity to be restrained.",
-            "Remedies: Courts may reform an overbroad covenant to make it reasonable, though damages are restricted prior to reformation."
-        ],
-        "tags": ["non-compete", "employment", "contract", "texas", "restrictive covenant"]
-    },
-    {
-        "title": "The Copyright Act of 1976 - Fair Use Doctrine",
-        "section": "17 U.S.C. § 107",
-        "jurisdiction": "Federal (United States)",
-        "description": "Establishes the limitations on exclusive rights, specifically the fair use of a copyrighted work.",
-        "provisions": [
-            "Purpose of use: Character of use, including commercial or non-profit educational purposes.",
-            "Nature of work: Degree of creativity and publication status.",
-            "Amount used: Substantiality of the portion used in relation to the copyrighted work as a whole.",
-            "Market impact: The effect of the use upon the potential market for or value of the copyrighted work."
-        ],
-        "tags": ["copyright", "fair use", "infringement", "intellectual property", "patent", "trademark"]
-    },
-    {
-        "title": "California Consumer Privacy Act (CCPA) / CPRA",
-        "section": "Cal. Civ. Code § 1798.100 et seq.",
-        "jurisdiction": "California, USA",
-        "description": "Comprehensive state statute protecting consumer privacy rights and establishing security obligations.",
-        "provisions": [
-            "Duty of Security: Businesses must maintain reasonable security procedures and practices.",
-            "Private Right of Action: Allows consumers to sue for statutory damages ($100-$750 per consumer per incident) in the event of unauthorized access, exfiltration, or disclosure resulting from failure to maintain reasonable security."
-        ],
-        "tags": ["privacy", "data breach", "california", "cybersecurity", "security", "leak"]
-    },
-    {
-        "title": "Restatement (Second) of Torts - Elements of Negligence",
-        "section": "Restatement (Second) of Torts § 281 et seq.",
-        "jurisdiction": "Common Law / Multi-state",
-        "description": "Defines the essential elements of a cause of action for negligence under US common law.",
-        "provisions": [
-            "Elements of Negligence: A plaintiff must establish: (a) a legal duty of care, (b) a breach of that duty, (c) a causal connection (proximate cause), and (d) actual loss or damage.",
-            "Standard of Care: The standard is that of a reasonable person under like circumstances, or a specialized professional standard for doctors, lawyers, or engineers."
-        ],
-        "tags": ["negligence", "medical malpractice", "duty of care", "liability", "damages", "injury"]
-    }
-]
+def get_chroma_client():
+    """Retrieves the persistent Chroma DB client, seeding it automatically if missing."""
+    if not os.path.exists(DB_DIR):
+        print("[*] Local database not found. Running seeder dynamically...")
+        try:
+            from seed_db import seed_database
+            seed_database()
+        except Exception as e:
+            print(f"[!] Warning: Failed to run database seeder dynamically: {e}")
+            
+    return chromadb.PersistentClient(path=DB_DIR)
 
 
 # ==========================================
-# 3. Tool Implementations (Decorated)
+# 1. Tool Implementations (ChromaDB-Backed)
 # ==========================================
 
 @tool
@@ -154,43 +46,63 @@ def search_case_law(query: str, jurisdiction: str = "") -> list:
     Returns:
         list: A list of matching precedent cases, containing names, citations, holdings, and principles.
     """
-    query_lower = query.lower()
-    j_lower = jurisdiction.lower() if jurisdiction else ""
-    
-    results = []
-    for case in MOCK_CASES:
-        score = 0
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name="case_law")
         
-        # 1. Jurisdiction Match
-        if j_lower and (j_lower in case["jurisdiction"].lower() or j_lower in case["name"].lower()):
-            score += 5
-            
-        # 2. Tag Match
-        for tag in case["tags"]:
-            if tag in query_lower:
-                score += 3
+        # Execute semantic search
+        results = collection.query(
+            query_texts=[query],
+            n_results=4
+        )
+        
+        matched_cases = []
+        if results and "metadatas" in results and results["metadatas"]:
+            metadatas = results["metadatas"][0]
+            for meta in metadatas:
+                case_jurisdiction = meta.get("jurisdiction", "")
                 
-        # 3. Text/Facts/Holding Match
-        if any(word in case["facts"].lower() for word in query_lower.split() if len(word) > 4):
-            score += 1
-        if any(word in case["principle"].lower() for word in query_lower.split() if len(word) > 4):
-            score += 1
-        if any(word in case["name"].lower() for word in query_lower.split() if len(word) > 4):
-            score += 1
-            
-        if score > 0:
-            results.append((score, case))
-            
-    # Sort by relevance score descending
-    results.sort(key=lambda x: x[0], reverse=True)
-    matched_cases = [item[1] for item in results]
-    
-    # If no results matched, return a default safe selection of general precedents to keep the agent operational
-    if not matched_cases:
-        # Fallback to returning cases based on a simple keyword presence or just return top 2
-        return MOCK_CASES[:2]
-        
-    return matched_cases
+                # If jurisdiction filter is provided, enforce a case-insensitive check
+                if jurisdiction and jurisdiction.lower() not in case_jurisdiction.lower() and jurisdiction.lower() not in meta.get("name", "").lower():
+                    continue
+                    
+                # Convert comma-separated tags string back into a list of strings
+                tags_list = [t.strip() for t in meta.get("tags", "").split(",") if t.strip()]
+                
+                matched_cases.append({
+                    "name": meta.get("name"),
+                    "citation": meta.get("citation"),
+                    "court": meta.get("court"),
+                    "year": int(meta.get("year", 2024)),
+                    "jurisdiction": case_jurisdiction,
+                    "facts": meta.get("facts"),
+                    "holding": meta.get("holding"),
+                    "principle": meta.get("principle"),
+                    "tags": tags_list
+                })
+                
+        # If filtering emptied the results, fallback to querying without the jurisdiction filter or return top results
+        if not matched_cases and results and "metadatas" in results and results["metadatas"]:
+            metadatas = results["metadatas"][0]
+            for meta in metadatas[:2]:
+                tags_list = [t.strip() for t in meta.get("tags", "").split(",") if t.strip()]
+                matched_cases.append({
+                    "name": meta.get("name"),
+                    "citation": meta.get("citation"),
+                    "court": meta.get("court"),
+                    "year": int(meta.get("year", 2024)),
+                    "jurisdiction": meta.get("jurisdiction"),
+                    "facts": meta.get("facts"),
+                    "holding": meta.get("holding"),
+                    "principle": meta.get("principle"),
+                    "tags": tags_list
+                })
+                
+        return matched_cases
+
+    except Exception as e:
+        print(f"[!] Database Search Error: {e}")
+        return []
 
 
 @tool
@@ -204,35 +116,39 @@ def lookup_statutes(topic: str) -> list:
     Returns:
         list: A list of relevant statutes with sections, citations, descriptions, and key provisions.
     """
-    topic_lower = topic.lower()
-    
-    results = []
-    for statute in MOCK_STATUTES:
-        score = 0
+    try:
+        client = get_chroma_client()
+        collection = client.get_collection(name="statutes")
         
-        # 1. Tag Match
-        for tag in statute["tags"]:
-            if tag in topic_lower:
-                score += 3
+        # Execute semantic search
+        results = collection.query(
+            query_texts=[topic],
+            n_results=3
+        )
+        
+        matched_statutes = []
+        if results and "metadatas" in results and results["metadatas"]:
+            metadatas = results["metadatas"][0]
+            for meta in metadatas:
+                # Convert comma-separated tags string back to list
+                tags_list = [t.strip() for t in meta.get("tags", "").split(",") if t.strip()]
+                # Convert newline-separated provisions string back to list
+                provisions_list = [p.strip() for p in meta.get("provisions", "").split("\n") if p.strip()]
                 
-        # 2. Text/Description Match
-        if any(word in statute["description"].lower() for word in topic_lower.split() if len(word) > 4):
-            score += 1
-        if any(word in statute["title"].lower() for word in topic_lower.split() if len(word) > 4):
-            score += 1
-            
-        if score > 0:
-            results.append((score, statute))
-            
-    # Sort by relevance score descending
-    results.sort(key=lambda x: x[0], reverse=True)
-    matched_statutes = [item[1] for item in results]
-    
-    # Fallback to returning top 2 general statutes if nothing matches
-    if not matched_statutes:
-        return MOCK_STATUTES[:2]
-        
-    return matched_statutes
+                matched_statutes.append({
+                    "title": meta.get("title"),
+                    "section": meta.get("section"),
+                    "jurisdiction": meta.get("jurisdiction"),
+                    "description": meta.get("description"),
+                    "provisions": provisions_list,
+                    "tags": tags_list
+                })
+                
+        return matched_statutes
+
+    except Exception as e:
+        print(f"[!] Database Lookup Error: {e}")
+        return []
 
 
 @tool

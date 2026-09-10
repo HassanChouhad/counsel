@@ -111,5 +111,8 @@ active_env/
 .env.*
 !.env.example
 
+# Local databases
+chroma_db/
+
 # macOS specific files
 .DS_Store
