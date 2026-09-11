@@ -187,7 +187,7 @@ body {
 }
 
 .brief-panel {
-  background-color: var(--paper-bg);
+  background-color: white;
   color: var(--paper-text);
 }
 
@@ -492,25 +492,21 @@ body {
 .brief-viewer-content {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 40px;
+  padding: 50px 60px;
   display: flex;
   justify-content: center;
+  background-color: white; /* Pristine seamless reading canvas */
 }
 
 @media (max-width: 900px) {
   .brief-viewer-content {
-    padding: 20px;
+    padding: 30px 24px;
   }
 }
 
-/* Document Page Effect */
+/* Document Page Effect - Simplified for Seamless Modern Editorial Look */
 .brief-markdown-render {
-  background-color: white;
   color: var(--paper-text);
-  padding: 50px 60px;
-  border-radius: 4px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.06);
-  border: 1px solid var(--paper-border);
   max-width: 800px;
   width: 100%;
   box-sizing: border-box;
@@ -522,7 +518,7 @@ body {
 
 @media (max-width: 600px) {
   .brief-markdown-render {
-    padding: 30px 24px;
+    padding: 0;
   }
 }
 
